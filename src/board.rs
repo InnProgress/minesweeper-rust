@@ -1,4 +1,5 @@
 use crate::constants;
+use crate::position::Position;
 use crate::tile::{PublicTile, Tile};
 use rand::Rng;
 
@@ -78,17 +79,43 @@ impl Board {
     }
 
     fn generate_tiles(&mut self, starting_x: u8, starting_y: u8) {
-        self.generate_mines(starting_x, starting_y);
+        let starting_positions = self.get_starting_positions(starting_x, starting_y);
+        self.generate_mines(starting_positions);
         self.generate_tips();
     }
 
-    fn generate_mines(&mut self, starting_x: u8, starting_y: u8) {
+    fn get_starting_positions(&mut self, starting_x: u8, starting_y: u8) -> Vec<Position> {
+        let mut starting_positions = vec![Position {
+            x: starting_x as i8,
+            y: starting_y as i8,
+        }];
+
+        for adjacent_coordinate in constants::ADJACENT_TILE_OFFSETS {
+            let adjacent_x = starting_x as i8 + adjacent_coordinate.x;
+            let adjacent_y = starting_y as i8 + adjacent_coordinate.y;
+
+            if !self.is_valid_coordinate(adjacent_x, adjacent_y) {
+                continue;
+            }
+            starting_positions.push(Position {
+                x: adjacent_x,
+                y: adjacent_y,
+            });
+        }
+
+        starting_positions
+    }
+
+    fn generate_mines(&mut self, starting_positions: Vec<Position>) {
         let mut rng = rand::thread_rng();
         for _ in 0..self.mines {
             let mut x = rng.gen_range(0..self.width);
             let mut y = rng.gen_range(0..self.height);
             while self.get_tile(x, y) != Tile::Empty
-                || (x == starting_x.into() && y == starting_y.into())
+                || starting_positions
+                    .iter()
+                    .find(|position| position.x == x as i8 && position.y == y as i8)
+                    .is_some()
             {
                 x = rng.gen_range(0..self.width);
                 y = rng.gen_range(0..self.height);
