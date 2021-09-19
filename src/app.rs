@@ -10,19 +10,27 @@ use eframe::{
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
+pub struct MinesweeperApp {
     board: Board,
+    settings_form: bool,
+    height: String,
+    width: String,
+    mines: String,
 }
 
-impl Default for TemplateApp {
+impl Default for MinesweeperApp {
     fn default() -> Self {
         Self {
             board: Board::new(9, 9, 10),
+            settings_form: false,
+            height: String::from("9"),
+            width: String::from("9"),
+            mines: String::from("10"),
         }
     }
 }
 
-impl epi::App for TemplateApp {
+impl epi::App for MinesweeperApp {
     fn name(&self) -> &str {
         "Minesweeper"
     }
@@ -51,6 +59,9 @@ impl epi::App for TemplateApp {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu(ui, "File", |ui| {
+                    if ui.button("Settings").clicked() {
+                        self.settings_form = true;
+                    }
                     if ui.button("Restart").clicked() {
                         self.board.restart();
                     }
@@ -138,6 +149,48 @@ impl epi::App for TemplateApp {
                 };
             }
             _ => {}
+        };
+
+        if self.settings_form {
+            egui::Window::new("Settings").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Height: ");
+                    ui.text_edit_singleline(&mut self.height);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Width: ");
+                    ui.text_edit_singleline(&mut self.width);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Mines: ");
+                    ui.text_edit_singleline(&mut self.mines);
+                });
+                if ui.button("Change").clicked() {
+                    let height = match self.height.parse() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return;
+                        }
+                    };
+                    let width = match self.width.parse() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return;
+                        }
+                    };
+                    let mines = match self.mines.parse() {
+                        Ok(value) => value,
+                        Err(_) => {
+                            return;
+                        }
+                    };
+                    self.board = Board::new(height, width, mines);
+                    self.settings_form = false;
+                }
+                if ui.button("Quit").clicked() {
+                    self.settings_form = false;
+                }
+            });
         }
     }
 }
