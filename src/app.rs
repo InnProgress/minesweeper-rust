@@ -3,7 +3,7 @@ use crate::{
     tile::{PublicTile, Tile},
 };
 use eframe::{
-    egui::{self, Color32},
+    egui::{self, Color32, TextStyle},
     epi,
 };
 
@@ -81,7 +81,7 @@ impl epi::App for MinesweeperApp {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     for x in 0..self.board.width {
                         let tile_button = ui.add_sized(
-                            [25., 25.],
+                            [30., 30.],
                             egui::Button::new(match &self.board.visible[y as usize][x as usize] {
                                 PublicTile::Visible(inner_tile) => match inner_tile {
                                     Tile::Mine => String::from("💥"),
@@ -114,8 +114,8 @@ impl epi::App for MinesweeperApp {
                                 PublicTile::Hidden => Color32::BLACK,
                                 PublicTile::Mine => Color32::RED,
                             })
-                            .fill(Color32::WHITE)
-                            .wrap(true),
+                            .text_style(TextStyle::Heading)
+                            .fill(Color32::WHITE),
                         );
                         if tile_button.clicked() {
                             self.board.capture(x, y);
