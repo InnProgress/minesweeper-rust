@@ -1,87 +1,83 @@
+use crate::cell::{Cell, VisibleCell};
 use crate::constants;
 use crate::position::Position;
-use crate::tile::{PublicTile, Tile};
+use crate::state::{FinishedState, State};
 use rand::Rng;
-
-#[derive(PartialEq, Eq)]
-pub enum FinishedState {
-    Won,
-    Lost,
-}
-
-#[derive(PartialEq, Eq)]
-pub enum State {
-    New,
-    Playing,
-    Finished(FinishedState),
-}
 
 pub struct Board {
     pub state: State,
-    initial_mines: u8,
-    pub mines: u8,
-    pub visible: Vec<Vec<PublicTile>>,
     pub height: u8,
     pub width: u8,
-    tiles: Vec<Vec<Tile>>,
+    initial_mines: u8,
+    pub mines: u8,
+    pub visible_cells: Vec<Vec<VisibleCell>>,
+    cells: Vec<Vec<Cell>>,
 }
 
 impl Board {
     pub fn new(height: u8, width: u8, mines: u8) -> Self {
-        let tiles = vec![vec![Tile::Empty; width as usize]; height as usize];
-        let visible = vec![vec![PublicTile::Hidden; width as usize]; height as usize];
+        let cells = vec![vec![Cell::Empty; width as usize]; height as usize];
+        let visible_cells = vec![vec![VisibleCell::Covered; width as usize]; height as usize];
 
         Self {
             state: State::New,
-            initial_mines: mines,
-            mines,
-            visible,
             height,
             width,
-            tiles,
+            initial_mines: mines,
+            mines,
+            visible_cells,
+            cells,
         }
     }
 
-    pub fn restart(&mut self) {
+    pub fn reset(&mut self) {
         *self = Self::new(self.height, self.width, self.initial_mines);
     }
 
-    pub fn capture(&mut self, x: u8, y: u8) -> Option<FinishedState> {
+    pub fn uncover_cell(&mut self, x: u8, y: u8) {
         if self.state == State::New {
-            self.generate_tiles(x, y);
+            self.fill_cells(x, y);
             self.state = State::Playing;
-        } else if self.state != State::Playing || self.get_visible_tile(x, y) == PublicTile::Mine {
-            return None;
+        } else if self.state != State::Playing
+            || self.get_visible_cell(x, y) == VisibleCell::Flagged
+        {
+            return;
         }
 
-        self.set_tile_visible(x, y);
-
-        if self.get_tile(x, y) == Tile::Mine {
-            self.state = State::Finished(FinishedState::Lost);
-            return Some(FinishedState::Lost);
-        } else if self.get_tile(x, y) == Tile::Empty {
-            self.capture_empty_path(x, y);
+        self.set_cell_visible(x, y);
+        if self.get_cell(x, y) == Cell::Empty {
+            self.uncover_empty_cells(x, y);
         }
 
-        if self.is_everything_captured() {
-            self.state = State::Finished(FinishedState::Won);
-            return Some(FinishedState::Won);
-        }
-
-        None
+        self.check_for_end_of_game(x, y);
     }
 
-    pub fn capture_mine(&mut self, x: u8, y: u8) {
+    pub fn flag_cell(&mut self, x: u8, y: u8) {
         if self.state != State::Playing {
             return;
         }
-        self.toggle_tile_mine_capture(x, y);
+
+        if self.get_visible_cell(x, y) == VisibleCell::Covered && self.mines > 0 {
+            self.visible_cells[y as usize][x as usize] = VisibleCell::Flagged;
+            self.mines -= 1;
+        } else if self.get_visible_cell(x, y) == VisibleCell::Flagged {
+            self.visible_cells[y as usize][x as usize] = VisibleCell::Covered;
+            self.mines += 1;
+        }
     }
 
-    fn generate_tiles(&mut self, starting_x: u8, starting_y: u8) {
+    fn check_for_end_of_game(&mut self, x: u8, y: u8) {
+        if self.get_cell(x, y) == Cell::Mine {
+            self.state = State::Finished(FinishedState::Lost);
+        } else if self.is_everything_uncovered() {
+            self.state = State::Finished(FinishedState::Won);
+        }
+    }
+
+    fn fill_cells(&mut self, starting_x: u8, starting_y: u8) {
         let starting_positions = self.get_starting_positions(starting_x, starting_y);
         self.generate_mines(starting_positions);
-        self.generate_tips();
+        self.generate_clues();
     }
 
     fn get_starting_positions(&mut self, starting_x: u8, starting_y: u8) -> Vec<Position> {
@@ -109,41 +105,42 @@ impl Board {
     fn generate_mines(&mut self, starting_positions: Vec<Position>) {
         let mut rng = rand::thread_rng();
         for _ in 0..self.mines {
-            let mut x = rng.gen_range(0..self.width);
-            let mut y = rng.gen_range(0..self.height);
-            while self.get_tile(x, y) != Tile::Empty
-                || starting_positions
-                    .iter()
-                    .find(|position| position.x == x as i8 && position.y == y as i8)
-                    .is_some()
-            {
+            let mut x;
+            let mut y;
+            while {
                 x = rng.gen_range(0..self.width);
                 y = rng.gen_range(0..self.height);
-            }
-            self.set_tile(x, y, Tile::Mine);
+
+                self.get_cell(x, y) != Cell::Empty
+                    || starting_positions
+                        .iter()
+                        .find(|position| position.x == x as i8 && position.y == y as i8)
+                        .is_some()
+            } {}
+            self.set_cell(x, y, Cell::Mine);
         }
     }
 
-    fn generate_tips(&mut self) {
+    fn generate_clues(&mut self) {
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.get_tile(x, y) != Tile::Empty {
+                if self.get_cell(x, y) != Cell::Empty {
                     continue;
                 }
 
                 let adjacent_mines = constants::ADJACENT_TILE_OFFSETS
                     .iter()
-                    .filter(|offset| self.is_tile_mine(x as i8 + offset.x, y as i8 + offset.y))
+                    .filter(|offset| self.is_mine(x as i8 + offset.x, y as i8 + offset.y))
                     .count() as u8;
 
                 if adjacent_mines > 0 {
-                    self.set_tile(x, y, Tile::Tip(adjacent_mines));
+                    self.set_cell(x, y, Cell::Clue(adjacent_mines));
                 }
             }
         }
     }
 
-    fn capture_empty_path(&mut self, x: u8, y: u8) {
+    fn uncover_empty_cells(&mut self, x: u8, y: u8) {
         for adjacent_coordinate in constants::ADJACENT_TILE_OFFSETS {
             let adjacent_x = x as i8 + adjacent_coordinate.x;
             let adjacent_y = y as i8 + adjacent_coordinate.y;
@@ -155,21 +152,21 @@ impl Board {
             let adjacent_x = adjacent_x as u8;
             let adjacent_y = adjacent_y as u8;
 
-            let adjacent_tile_before_visibility = self.get_visible_tile(adjacent_x, adjacent_y);
-            self.set_tile_visible(adjacent_x, adjacent_y);
-            if self.get_tile(adjacent_x, adjacent_y) == Tile::Empty
-                && adjacent_tile_before_visibility == PublicTile::Hidden
+            let adjacent_tile_before_visibility = self.get_visible_cell(adjacent_x, adjacent_y);
+            self.set_cell_visible(adjacent_x, adjacent_y);
+            if self.get_cell(adjacent_x, adjacent_y) == Cell::Empty
+                && adjacent_tile_before_visibility == VisibleCell::Covered
             {
-                self.capture_empty_path(adjacent_x, adjacent_y);
+                self.uncover_empty_cells(adjacent_x, adjacent_y);
             }
         }
     }
 
-    fn is_everything_captured(&mut self) -> bool {
+    fn is_everything_uncovered(&mut self) -> bool {
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.get_visible_tile(x, y) == PublicTile::Hidden
-                    && self.get_tile(x, y) != Tile::Mine
+                if self.get_visible_cell(x, y) == VisibleCell::Covered
+                    && self.get_cell(x, y) != Cell::Mine
                 {
                     return false;
                 }
@@ -179,34 +176,25 @@ impl Board {
         true
     }
 
-    fn get_tile(&self, x: u8, y: u8) -> Tile {
-        self.tiles[y as usize][x as usize].clone()
+    pub fn get_cell(&self, x: u8, y: u8) -> Cell {
+        self.cells[y as usize][x as usize].clone()
     }
 
-    fn get_visible_tile(&self, x: u8, y: u8) -> PublicTile {
-        self.visible[y as usize][x as usize].clone()
+    pub fn get_visible_cell(&self, x: u8, y: u8) -> VisibleCell {
+        self.visible_cells[y as usize][x as usize].clone()
     }
 
-    fn set_tile(&mut self, x: u8, y: u8, tile: Tile) {
-        self.tiles[y as usize][x as usize] = tile;
+    fn set_cell(&mut self, x: u8, y: u8, cell: Cell) {
+        self.cells[y as usize][x as usize] = cell;
     }
 
-    fn set_tile_visible(&mut self, x: u8, y: u8) {
-        self.visible[y as usize][x as usize] = PublicTile::Visible(self.get_tile(x, y).clone());
+    fn set_cell_visible(&mut self, x: u8, y: u8) {
+        self.visible_cells[y as usize][x as usize] =
+            VisibleCell::Uncovered(self.get_cell(x, y).clone());
     }
 
-    fn toggle_tile_mine_capture(&mut self, x: u8, y: u8) {
-        if self.get_visible_tile(x, y) == PublicTile::Hidden && self.mines > 0 {
-            self.visible[y as usize][x as usize] = PublicTile::Mine;
-            self.mines -= 1;
-        } else if self.get_visible_tile(x, y) == PublicTile::Mine {
-            self.visible[y as usize][x as usize] = PublicTile::Hidden;
-            self.mines += 1;
-        }
-    }
-
-    fn is_tile_mine(&self, x: i8, y: i8) -> bool {
-        self.is_valid_coordinate(x, y) && self.tiles[y as usize][x as usize] == Tile::Mine
+    fn is_mine(&self, x: i8, y: i8) -> bool {
+        self.is_valid_coordinate(x, y) && self.get_cell(x as u8, y as u8) == Cell::Mine
     }
 
     fn is_valid_coordinate(&self, x: i8, y: i8) -> bool {
