@@ -98,13 +98,12 @@ impl Board {
             let adjacent_x = starting_x as i8 + adjacent_coordinate.x;
             let adjacent_y = starting_y as i8 + adjacent_coordinate.y;
 
-            if !self.is_valid_coordinate(adjacent_x, adjacent_y) {
-                continue;
+            if self.is_valid_coordinate(adjacent_x, adjacent_y) {
+                starting_positions.push(Position {
+                    x: adjacent_x,
+                    y: adjacent_y,
+                });
             }
-            starting_positions.push(Position {
-                x: adjacent_x,
-                y: adjacent_y,
-            });
         }
 
         starting_positions
