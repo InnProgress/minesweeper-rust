@@ -11,6 +11,7 @@ use eframe::{
 
 pub struct MinesweeperApp {
     board: Board,
+    error: Option<String>,
     settings_modal_opened: bool,
     height_input: String,
     width_input: String,
@@ -89,6 +90,9 @@ impl MinesweeperApp {
                 ui.label("Mines: ");
                 ui.text_edit_singleline(&mut self.mines_input);
             });
+            if let Some(error) = &self.error {
+                ui.label(format!("Error: {}", error));
+            }
             if ui.button("Change").clicked() {
                 let height = match self.height_input.parse() {
                     Ok(value) => value,
@@ -108,9 +112,17 @@ impl MinesweeperApp {
                         return;
                     }
                 };
-                self.board = Board::new(height, width, mines);
+                let new_board = Board::new(height, width, mines);
+                match new_board {
+                    Ok(board) => self.board = board,
+                    Err(err) => {
+                        self.error = Some(err.to_string());
+                        return;
+                    }
+                };
                 frame.set_window_size(Self::calculate_size(height, width));
                 self.settings_modal_opened = false;
+                self.error = None;
             }
             if ui.button("Quit").clicked() {
                 self.settings_modal_opened = false;
@@ -182,7 +194,9 @@ impl Default for MinesweeperApp {
                 constants::DEFAULT_BOARD_HEIGHT,
                 constants::DEFAULT_BOARD_WIDTH,
                 constants::DEFAULT_BOARD_MINES,
-            ),
+            )
+            .unwrap(),
+            error: None,
             settings_modal_opened: false,
             height_input: format!("{}", constants::DEFAULT_BOARD_HEIGHT),
             width_input: format!("{}", constants::DEFAULT_BOARD_WIDTH),

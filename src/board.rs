@@ -15,7 +15,15 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn new(height: u8, width: u8, mines: u8) -> Self {
+    pub fn new(height: u8, width: u8, mines: u8) -> Result<Self, &'static str> {
+        if mines > height * width - 9 {
+            return Err("Wrong amount of mines in comparison with width and height");
+        }
+
+        Ok(Self::setup(height, width, mines))
+    }
+
+    fn setup(height: u8, width: u8, mines: u8) -> Self {
         let cells = vec![vec![Cell::Empty; width as usize]; height as usize];
         let visible_cells = vec![vec![VisibleCell::Covered; width as usize]; height as usize];
 
@@ -31,7 +39,7 @@ impl Board {
     }
 
     pub fn reset(&mut self) {
-        *self = Self::new(self.height, self.width, self.initial_mines);
+        *self = Self::setup(self.height, self.width, self.initial_mines);
     }
 
     pub fn uncover_cell(&mut self, x: u8, y: u8) {
