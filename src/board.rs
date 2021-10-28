@@ -85,7 +85,6 @@ impl Board {
     fn fill_cells(&mut self, starting_x: u8, starting_y: u8) {
         let starting_positions = self.get_starting_positions(starting_x, starting_y);
         self.generate_mines(starting_positions);
-        self.generate_clues();
     }
 
     fn get_starting_positions(&mut self, starting_x: u8, starting_y: u8) -> Vec<Position> {
@@ -128,22 +127,18 @@ impl Board {
         }
     }
 
-    fn generate_clues(&mut self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if self.get_cell(x, y) != Cell::Empty {
-                    continue;
-                }
+    fn generate_cell_clue(&mut self, x: u8, y: u8) {
+        if self.get_cell(x, y) != Cell::Empty {
+            return;
+        }
 
-                let adjacent_mines = constants::ADJACENT_TILE_OFFSETS
-                    .iter()
-                    .filter(|offset| self.is_mine(x as i8 + offset.x, y as i8 + offset.y))
-                    .count() as u8;
+        let adjacent_mines = constants::ADJACENT_TILE_OFFSETS
+            .iter()
+            .filter(|offset| self.is_mine(x as i8 + offset.x, y as i8 + offset.y))
+            .count() as u8;
 
-                if adjacent_mines > 0 {
-                    self.set_cell(x, y, Cell::Clue(adjacent_mines));
-                }
-            }
+        if adjacent_mines > 0 {
+            self.set_cell(x, y, Cell::Clue(adjacent_mines));
         }
     }
 
@@ -196,6 +191,7 @@ impl Board {
     }
 
     fn set_cell_visible(&mut self, x: u8, y: u8) {
+        self.generate_cell_clue(x, y);
         self.visible_cells[y as usize][x as usize] =
             VisibleCell::Uncovered(self.get_cell(x, y).clone());
     }
