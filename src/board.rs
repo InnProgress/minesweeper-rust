@@ -3,32 +3,28 @@ use crate::constants;
 use crate::memento::{BoardMemento, Originator};
 use crate::position::Position;
 use crate::state::{FinishedState, State};
-use rand::Rng;
+use rand::rngs::StdRng;
+use rand::{Rng, RngCore, SeedableRng};
 
+#[derive(Clone)]
 pub struct Board {
-    pub state: State,
-    pub height: u8,
-    pub width: u8,
+    pub seed: Option<u64>,
+    state: State,
+    height: u8,
+    width: u8,
     initial_mines: u8,
-    pub mines: u8,
-    pub visible_cells: Vec<Vec<VisibleCell>>,
+    mines: u8,
+    visible_cells: Vec<Vec<VisibleCell>>,
     cells: Vec<Vec<Cell>>,
 }
 
 impl Board {
-    pub fn new(height: u8, width: u8, mines: u8) -> Result<Self, &'static str> {
-        if mines > height * width - 9 {
-            return Err("Wrong amount of mines in comparison with width and height");
-        }
-
-        Ok(Self::setup(height, width, mines))
-    }
-
-    fn setup(height: u8, width: u8, mines: u8) -> Self {
+    pub fn new(height: u8, width: u8, mines: u8) -> Self {
         let cells = vec![vec![Cell::Empty; width as usize]; height as usize];
         let visible_cells = vec![vec![VisibleCell::Covered; width as usize]; height as usize];
 
         Self {
+            seed: None,
             state: State::New,
             height,
             width,
@@ -40,7 +36,7 @@ impl Board {
     }
 
     pub fn reset(&mut self) {
-        *self = Self::setup(self.height, self.width, self.initial_mines);
+        *self = Self::new(self.height, self.width, self.initial_mines);
     }
 
     pub fn uncover_cell(&mut self, x: u8, y: u8) {
@@ -110,7 +106,11 @@ impl Board {
     }
 
     fn generate_mines(&mut self, starting_positions: Vec<Position>) {
-        let mut rng = rand::thread_rng();
+        let mut rng: Box<dyn RngCore> = match self.seed {
+            Some(seed) => Box::new(StdRng::seed_from_u64(seed)),
+            None => Box::new(rand::thread_rng()),
+        };
+
         for _ in 0..self.mines {
             let mut x;
             let mut y;
@@ -125,6 +125,7 @@ impl Board {
                         .is_some()
             } {}
             self.set_cell(x, y, Cell::Mine);
+            println!("mine is here {} {}", x, y);
         }
     }
 
@@ -203,6 +204,22 @@ impl Board {
 
     fn is_valid_coordinate(&self, x: i8, y: i8) -> bool {
         x >= 0 && x < self.width as i8 && y >= 0 && y < self.height as i8
+    }
+
+    pub fn get_state(&self) -> &State {
+        &self.state
+    }
+
+    pub fn get_mines_number(&self) -> u8 {
+        self.mines
+    }
+
+    pub fn get_height(&self) -> u8 {
+        self.height
+    }
+
+    pub fn get_width(&self) -> u8 {
+        self.width
     }
 }
 

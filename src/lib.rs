@@ -1,4 +1,5 @@
 pub mod board;
+pub mod board_builder;
 pub mod cell;
 pub mod constants;
 pub mod gui;

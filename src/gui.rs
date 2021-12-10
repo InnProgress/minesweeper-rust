@@ -1,5 +1,6 @@
 use crate::{
     board::Board,
+    board_builder::BoardBuilder,
     cell::{Cell, VisibleCell},
     constants,
     memento::{BoardMemento, Caretaker, Originator},
@@ -59,15 +60,18 @@ impl MinesweeperApp {
 
     fn draw_board_panel(&mut self, ctx: &egui::CtxRef) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add(egui::Label::new(format!("Mines: {}", self.board.mines)));
+            ui.add(egui::Label::new(format!(
+                "Mines: {}",
+                self.board.get_mines_number()
+            )));
 
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                for y in 0..self.board.height {
+                for y in 0..self.board.get_height() {
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
-                        for x in 0..self.board.width {
+                        for x in 0..self.board.get_width() {
                             self.draw_cell(ui, x, y);
                         }
                     });
@@ -126,7 +130,7 @@ impl MinesweeperApp {
                         return;
                     }
                 };
-                let new_board = Board::new(height, width, mines);
+                let new_board = BoardBuilder::new(height, width, mines).build();
                 match new_board {
                     Ok(board) => self.board = board,
                     Err(err) => {
@@ -207,11 +211,12 @@ impl Default for MinesweeperApp {
     fn default() -> Self {
         Self {
             caretaker: Caretaker::new(),
-            board: Board::new(
+            board: BoardBuilder::new(
                 constants::DEFAULT_BOARD_HEIGHT,
                 constants::DEFAULT_BOARD_WIDTH,
                 constants::DEFAULT_BOARD_MINES,
             )
+            .build()
             .unwrap(),
             error: None,
             settings_modal_opened: false,
@@ -230,7 +235,7 @@ impl epi::App for MinesweeperApp {
     fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
         self.draw_top_menu(ctx, frame);
         self.draw_board_panel(ctx);
-        match self.board.state.clone() {
+        match self.board.get_state().clone() {
             State::Finished(finished_state) => self.draw_end_of_game_modal(ctx, finished_state),
             _ => {}
         };
