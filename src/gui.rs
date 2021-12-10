@@ -2,6 +2,7 @@ use crate::{
     board::Board,
     cell::{Cell, VisibleCell},
     constants,
+    memento::{BoardMemento, Caretaker, Originator},
     state::{FinishedState, State},
 };
 use eframe::{
@@ -10,6 +11,7 @@ use eframe::{
 };
 
 pub struct MinesweeperApp {
+    caretaker: Caretaker<BoardMemento>,
     board: Board,
     error: Option<String>,
     settings_modal_opened: bool,
@@ -26,6 +28,10 @@ impl MinesweeperApp {
         }
     }
 
+    fn save_state(&mut self) {
+        self.caretaker.add_memento(self.board.save_memento());
+    }
+
     fn draw_top_menu(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -34,7 +40,14 @@ impl MinesweeperApp {
                         self.settings_modal_opened = true;
                     }
                     if ui.button("Restart").clicked() {
+                        self.save_state();
                         self.board.reset();
+                    }
+                    if ui.button("Back").clicked() {
+                        let last_memento = self.caretaker.get_last_memento();
+                        if let Some(last_memento) = last_memento {
+                            self.board.restore_from_memento(last_memento);
+                        }
                     }
                     if ui.button("Quit").clicked() {
                         frame.quit();
@@ -71,6 +84,7 @@ impl MinesweeperApp {
             };
 
             if ui.button("Start new game").clicked() {
+                self.save_state();
                 self.board.reset();
             }
         });
@@ -146,8 +160,10 @@ impl MinesweeperApp {
         );
 
         if cell_button.clicked() {
+            self.save_state();
             self.board.uncover_cell(x, y);
         } else if cell_button.secondary_clicked() {
+            self.save_state();
             self.board.flag_cell(x, y);
         }
     }
@@ -190,6 +206,7 @@ impl MinesweeperApp {
 impl Default for MinesweeperApp {
     fn default() -> Self {
         Self {
+            caretaker: Caretaker::new(),
             board: Board::new(
                 constants::DEFAULT_BOARD_HEIGHT,
                 constants::DEFAULT_BOARD_WIDTH,

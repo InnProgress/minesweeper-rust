@@ -1,5 +1,6 @@
 use crate::cell::{Cell, VisibleCell};
 use crate::constants;
+use crate::memento::{BoardMemento, Originator};
 use crate::position::Position;
 use crate::state::{FinishedState, State};
 use rand::Rng;
@@ -202,5 +203,29 @@ impl Board {
 
     fn is_valid_coordinate(&self, x: i8, y: i8) -> bool {
         x >= 0 && x < self.width as i8 && y >= 0 && y < self.height as i8
+    }
+}
+
+impl Originator<BoardMemento> for Board {
+    fn save_memento(&self) -> Box<BoardMemento> {
+        Box::new(BoardMemento {
+            state: self.state.clone(),
+            height: self.height,
+            width: self.width,
+            initial_mines: self.initial_mines,
+            mines: self.mines,
+            visible_cells: self.visible_cells.clone(),
+            cells: self.cells.clone(),
+        })
+    }
+
+    fn restore_from_memento(&mut self, memento: Box<BoardMemento>) {
+        self.state = memento.state;
+        self.height = memento.height;
+        self.width = memento.width;
+        self.initial_mines = memento.initial_mines;
+        self.mines = memento.mines;
+        self.visible_cells = memento.visible_cells;
+        self.cells = memento.cells;
     }
 }
