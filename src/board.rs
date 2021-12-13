@@ -125,7 +125,6 @@ impl Board {
                         .is_some()
             } {}
             self.set_cell(x, y, Cell::Mine);
-            println!("mine is here {} {}", x, y);
         }
     }
 
